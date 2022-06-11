@@ -1,0 +1,5 @@
+wxPython~=4.1.1
+wxasync~=0.46
+Pypubsub~=4.0.3
+scapy~=2.4.5
+pyperclip~=1.8.2
