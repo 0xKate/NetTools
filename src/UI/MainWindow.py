@@ -23,6 +23,9 @@ SOFTWARE.
 """
 
 import asyncio
+import bz2
+import json
+import pickle
 import time
 import webbrowser
 import pyperclip as pc
@@ -44,8 +47,9 @@ class MainWindow(wx.Frame):
         """
         The applications View
         """
+        self.AutoRefresh = True
         self.Data = _NetToolsData
-        self.RefreshRate = 2.5
+        self.RefreshRate = 1
         # Initialize Frame
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -57,26 +61,42 @@ class MainWindow(wx.Frame):
 
         # File Menu
         self._FileMenu = wx.Menu()
-        # File Menu - Quit Button
-        self._MenuBar.Quit_Button = self._FileMenu.Append(wx.NewId(), "Quit", "Exits the application.")
-        # File Menu - Quit Button Callback
-        self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.ExitGame.value), self._MenuBar.Quit_Button)
-        # File Menu - Add to Menubar
+        self.Quit_Button = self._FileMenu.Append(wx.NewId(), "Quit", "Exits the application.")
+        self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.ExitGame.value), self.Quit_Button)
+        self.SaveAsNTD_Button = self._FileMenu.Append(wx.NewId(), "Save as NTD", "Save the current table of connections to a loadable file format")
+        self.Bind(wx.EVT_MENU, self.SaveAsNTD_CB, self.SaveAsNTD_Button)
+        self.SaveAsText_Button = self._FileMenu.Append(wx.NewId(), "Save as Text", "Save the current table of connections in a human readable format. (CANNOT BE LOADED)")
+        self.Bind(wx.EVT_MENU, self.SaveAsText_CB, self.SaveAsText_Button)
         self._MenuBar.Append(self._FileMenu, "File")
         # End File Menu
 
         # Sniffer Menu
-        self._SniferMenu = wx.Menu()
+
+        self._SnifferMenu = wx.Menu()
         # Sniffer Menu - Start Sniffer Button
-        self._MenuBar.StartSniff_Button = self._SniferMenu.Append(wx.NewId(), "Start Sniffer", "Start the background sniffer task.")
-        # Sniffer Menu - Start Sniffer Button Callback
-        self.Bind(wx.EVT_MENU, self.StartSniffingCB, self._MenuBar.StartSniff_Button)
+        self.StartSniff_Button = self._SnifferMenu.Append(wx.NewId(), "Start Sniffer", "Start the background sniffer task.")
+        self.Bind(wx.EVT_MENU, self.StartSniffingCB, self.StartSniff_Button)
         # Sniffer Menu - Stop Sniffer Button
-        self._MenuBar.StopSniff_Button = self._SniferMenu.Append(wx.NewId(), "Stop Sniffer", "Stop the background sniffer task.")
-        # Sniffer Menu - Stop Sniffer Button Callback
-        self.Bind(wx.EVT_MENU, self.StopSniffingCB, self._MenuBar.StopSniff_Button)
-        # Sniffer Menu - Add to Menubar
-        self._MenuBar.Append(self._SniferMenu, "Sniffer")
+        self.StopSniff_Button = self._SnifferMenu.Append(wx.NewId(), "Stop Sniffer", "Stop the background sniffer task.")
+        self.Bind(wx.EVT_MENU, self.StopSniffingCB, self.StopSniff_Button)
+        # Sniffer Menu - Add to MenuBar
+        self._MenuBar.Append(self._SnifferMenu, "Sniffer")
+
+        self._OptionsSubMenu = wx.Menu()
+        self.AutoRefreshToggle_Button = self._OptionsSubMenu.AppendCheckItem(wx.NewId(), "Auto Refresh", "Toggle Auto Refresh") # type: wx.MenuItem
+        self.AutoRefreshToggle_Button.Check()
+        self.Bind(wx.EVT_MENU, self.AutoRefreshToggleCB, self.AutoRefreshToggle_Button)
+        self._SnifferMenu.Append(wx.ID_ANY, 'Options', self._OptionsSubMenu)
+
+        #imp = wx.Menu()
+        #imp.Append(wx.ID_ANY, 'SubMenu 1')
+        #imp.Append(wx.ID_ANY, 'SubMenu 2')
+        #imp.Append(wx.ID_ANY, 'SubMenu 3')
+        # append submenu with menuitem
+        #fileMenu.AppendMenu(wx.ID_ANY, 'MenuItem', imp)
+        #menubar.Append(fileMenu, '&Menu')
+        #self.SetMenuBar(menubar)
+
         # End # Sniffer Menu
 
         self.SetMenuBar(self._MenuBar)
@@ -190,7 +210,7 @@ class MainWindow(wx.Frame):
 
     async def update_data(self):
         while True:
-            if self.IsShown():
+            if self.AutoRefresh and self.IsShown():
                 self.refresh_data()
             await asyncio.sleep(self.RefreshRate)
 
@@ -243,3 +263,55 @@ class MainWindow(wx.Frame):
 
         self.PopupMenu(_Menu, event.GetPosition())
         event.Skip()
+
+    def AutoRefreshToggleCB(self, event):
+        self.AutoRefresh = self.AutoRefreshToggle_Button.IsChecked()
+
+    def SaveAsNTD_CB(self, event):
+        self.SaveFile('NTD')
+
+    def SaveAsText_CB(self, event):
+        self.SaveFile('txt')
+
+    def OpenFile(self, file_type):
+        with wx.FileDialog(self, "Open NTD file", wildcard="NTD files (*.ntd)|*.ntd",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # Proceed loading the file chosen by the user
+            pathname = fileDialog.GetPath()
+            try:
+                with bz2.BZ2File(pathname,'rb') as bz2file:
+                    #data = json.load(file)
+                    data = pickle.load(bz2file)
+                    self.Data.SetConnectionsDict(data)
+            except IOError:
+                wx.LogError("Cannot open file '%s'." % pathname)
+
+    def SaveFile(self, file_type):
+        with wx.FileDialog(self, f"Save {file_type} file", wildcard=f"{file_type} files (*.{file_type})|*.{file_type}",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # save the current contents in the file
+            pathname = fileDialog.GetPath()
+            if file_type == 'NTD':
+                try:
+                    with bz2.BZ2File(pathname, 'wb') as bz2file:
+                        pickle.dump(self.Data.GetConnectionsDict(), bz2file)
+                        #json.dump(self.Data.GetConnectionsDict(), file)
+                except IOError:
+                    wx.LogError("Cannot save current data in file '%s'." % pathname)
+            elif file_type == 'txt':
+                try:
+                    with open(pathname, 'w') as file:
+                        for i in self.Data.GetAllConnections():
+                            file.writelines(f'EndPoint: {i.GetRemoteEndPoint()}\t\t\t\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}\n')
+                        #pickle.dump(self.Data.GetConnectionsDict(), bz2file)
+                        #json.dump(self.Data.GetConnectionsDict(), file)
+                except IOError:
+                    wx.LogError("Cannot save current data in file '%s'." % pathname)

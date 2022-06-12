@@ -48,24 +48,6 @@ class NetToolsData:
         self.LocalIP = get_if_addr(conf.iface)
         self.loop = asyncio.get_running_loop()
 
-    ## - M.U.D - ##
-
-    def GetAllConnections(self):
-        # all_conn = self.UDPConnections | self.TCPConnections
-        # return all_conn.values()
-        return self.Connections.values()
-
-    def GetNumBGThreads(self):
-        return self.BackgroundThreads
-
-    def SniffStop(self):
-        if self.Sniffing:
-            self.SnifferEvent.set()
-
-    def SniffStart(self):
-        if not self.Sniffing:
-            self.loop.create_task(self._BGSniffer())
-
     ## - Helper Functions - ##
 
     async def HostFromAddr(self, ip):
@@ -151,3 +133,27 @@ class NetToolsData:
                 conn_signature = (str(remote_socket[0]), int(remote_socket[1]), int(proto.value))
                 self.loop.create_task(self._UpdateConnectionData(conn_signature, remote_socket, local_socket,
                                                              proto.name, direction, len(pkt)))
+
+    ## - M.U.D - ##
+
+    def SniffStop(self):
+        if self.Sniffing:
+            self.SnifferEvent.set()
+
+    def SniffStart(self):
+        if not self.Sniffing:
+            self.loop.create_task(self._BGSniffer())
+
+    def SetConnectionsDict(self, new_dict):
+        self.Connections = new_dict
+
+    def GetConnectionsDict(self):
+        return self.Connections
+
+    def GetAllConnections(self):
+        # all_conn = self.UDPConnections | self.TCPConnections
+        # return all_conn.values()
+        return self.Connections.values()
+
+    def GetNumBGThreads(self):
+        return self.BackgroundThreads
