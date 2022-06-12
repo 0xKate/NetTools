@@ -22,12 +22,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-from NetToolsApp import WxAsyncEngine
-from os.path import dirname
-from os import chdir
+import wx
+from wx.adv import TaskBarIcon
 
-if __name__ == "__main__":
-    pwd = dirname(__file__)
-    chdir(pwd)
-    UIEngine = WxAsyncEngine()
-    UIEngine.StartLoop()
+
+class TrayIcon(TaskBarIcon):
+    def __init__(self, frame):
+        TaskBarIcon.__init__(self)
+        self.frame = frame
+        self.SetIcon(wx.Icon('assets/GameIcon.bmp'), 'Task bar icon')
+        self.Bind(wx.EVT_MENU, self.OnTaskBarActivate, id=1)
+        self.Bind(wx.EVT_MENU, self.OnTaskBarDeactivate, id=2)
+        self.Bind(wx.EVT_MENU, self.OnTaskBarClose, id=3)
+
+    def CreatePopupMenu(self):
+        menu = wx.Menu()
+        menu.Append(1, 'Show')
+        menu.Append(2, 'Hide')
+        menu.Append(3, 'Close')
+        return menu
+
+    def OnTaskBarClose(self, event):
+        self.frame.Close()
+
+    def OnTaskBarActivate(self, event):
+        if not self.frame.IsShown():
+            self.frame.Show()
+
+    def OnTaskBarDeactivate(self, event):
+        if self.frame.IsShown():
+            self.frame.Hide()
