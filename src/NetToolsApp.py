@@ -39,7 +39,6 @@ class NetToolsApp:
     def Render(self):
         self.MainWindow.Show()
 
-
 class WxAsyncEngine(WxAsyncApp):
     """ Main WxAsync Application """
     Version = 0.02
@@ -47,9 +46,11 @@ class WxAsyncEngine(WxAsyncApp):
     def __init__(self):
         WxAsyncApp.__init__(self, 0)
         pubsub.pub.subscribe(self._Exit, EventMsg.Exit.value)
+        self.App = None
+
     def OnInit(self):
         """ Windows 10 Icon Fix """
-        app_id = f'0xStudios.RPGMagnate.RPGMagnate.{self.Version}'  # arbitrary string
+        app_id = f'0xStudios.NullSec.NetTools.{self.Version}'  # arbitrary string
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(True)
@@ -57,17 +58,16 @@ class WxAsyncEngine(WxAsyncApp):
             pass
         return True
 
-    async def _Start(self):
+    async def _StartAsync(self):
         """ Blends the wxPython and asyncio event loops. """
-        App = NetToolsApp()
-        App.Render()
+        self.App = NetToolsApp()
+        self.App.Render()
         await self.MainLoop()
-        print('WxAsyncLoop Ended')
 
-    def StartLoop(self):
-        asyncio.run(self._Start())
-        print('asyncio.run() Ended')
+    def Start(self):
+        """Use the main thread to run our main event loop (ie. GoldenThread)"""
+        asyncio.run(self._StartAsync())
 
     def _Exit(self):
         """ Save & Quit the application """
-        pass
+        self.ExitMainLoop()

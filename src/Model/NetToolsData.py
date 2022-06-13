@@ -24,18 +24,21 @@ SOFTWARE.
 
 import asyncio
 import contextlib
+
+# Included with Python
 from multiprocessing.pool import ThreadPool
 from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
 from typing import Dict, Tuple, List, ValuesView, Union
 from datetime import datetime
 
-
+# 3rd Party Libraries
 import psutil
 from scapy.arch import get_if_addr
 from scapy.config import conf
 from scapy.layers.inet import TCP, UDP, IP
 from scapy.sendrecv import AsyncSniffer
 
+# Project Files
 import Enums
 from Enums import PROTO
 from Model.HostData import HostData
@@ -50,6 +53,7 @@ PROTO_MAP6 = {
 }
 
 class NetToolsData:
+    """ Main DataModel of the application"""
     __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver", "Connections", "SnifferEvent", "LocalIP", "loop", "ListAllSockets"]
     def __init__(self):
         self.Sniffing = False
@@ -80,6 +84,8 @@ class NetToolsData:
         else:
             return _dict[signature]
 
+    # Something wrong with the Typing of callback=
+    # noinspection PyTypeChecker
     async def _GetHostByAddrAsync(self, ip):
         """
         GetHostFromAddr(ip) -> fqdn\n
@@ -103,18 +109,17 @@ class NetToolsData:
             return result
 
     ## - Backend Data Manipulation - ##
-
-    async def _BGSniffer(self):
-        _SnifferTask = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
-        _SnifferTask.start()
+    async def _BGSnifferAsync(self):
+        sniffer_task = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
+        sniffer_task.start()
         self.Sniffing = True
         await self.SnifferEvent.wait()
-        if _SnifferTask.running:
-            _SnifferTask.stop()
+        if sniffer_task.running:
+            sniffer_task.stop()
         self.Sniffing = False
         self.SnifferEvent.clear()
 
-    async def _UpdateConnectionData(self, conn_signature: Tuple[str, int, int],
+    async def _UpdateConnectionDataAsync(self, conn_signature: Tuple[str, int, int],
                                 remote_host, local_host,
                                 conn_type, conn_direction, pkt_size):
         if conn_signature in self.Connections:
@@ -164,7 +169,7 @@ class NetToolsData:
                     and remote_socket is not None\
                     and local_socket is not None:
                 conn_signature = (str(remote_socket[0]), int(remote_socket[1]), int(proto.value))
-                self.loop.create_task(self._UpdateConnectionData(conn_signature, remote_socket, local_socket,
+                self.loop.create_task(self._UpdateConnectionDataAsync(conn_signature, remote_socket, local_socket,
                                                              proto.name, direction, len(pkt)))
 
     ## - M.U.D - ##
@@ -175,7 +180,7 @@ class NetToolsData:
 
     def SniffStart(self):
         if not self.Sniffing:
-            self.loop.create_task(self._BGSniffer())
+            self.loop.create_task(self._BGSnifferAsync())
 
     def SetConnectionsDict(self, new_dict):
         self.Connections = new_dict
@@ -183,8 +188,11 @@ class NetToolsData:
     def GetConnectionsDict(self):
         return self.Connections
 
-    def GetAllConnections(self) -> ValuesView[HostData,  dict[tuple[str, int, int], HostData]]:
+    def GetAllConnections(self):# -> ValuesView[HostData,  dict[tuple[str, int, int], HostData]]:
         return self.Connections.values()
 
     def GetNumBGThreads(self):
         return self.BackgroundThreads
+
+    def GetSnifferStatus(self):
+        return self.Sniffing

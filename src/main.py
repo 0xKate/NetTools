@@ -30,4 +30,4 @@ if __name__ == "__main__":
     pwd = dirname(__file__)
     chdir(pwd)
     UIEngine = WxAsyncEngine()
-    UIEngine.StartLoop()
+    UIEngine.Start()
