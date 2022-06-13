@@ -29,6 +29,7 @@ import bz2
 import contextlib
 import json
 import pickle
+import threading
 import time
 import webbrowser
 from multiprocessing.pool import ThreadPool
@@ -43,6 +44,7 @@ from wx.grid import Grid
 from wxasync import StartCoroutine, AsyncBind
 
 from Enums import EventMsg
+from Model.HostData import HostData
 from UI.TrayIcon import TrayIcon
 from NetToolsApp import NetToolsData
 
@@ -53,15 +55,22 @@ class MainWindow(wx.Frame):
         """
         The applications View
         """
+
+        # Custom View Properties
+        self.SortBy = 'PacketCount'
         self.AutoRefresh = True
-        self.Data = _NetToolsData
         self.RefreshRate = 1
+        # Model
+        self.Data = _NetToolsData
+
         # Initialize Frame
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
+
         # Icon
         _Icon = wx.Icon('assets/GameIcon.bmp')
         self.SetIcon(_Icon)
+
         # Menu Bar
         self._MenuBar = wx.MenuBar()
 
@@ -70,16 +79,13 @@ class MainWindow(wx.Frame):
         self.Quit_Button = self._FileMenu.Append(wx.NewId(), "Quit", "Exits the application.")
         self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.Exit.value), self.Quit_Button)
         self.SaveAsNTD_Button = self._FileMenu.Append(wx.NewId(), "Save as NTD", "Save the current table of connections to a loadable file format")
-        self.Bind(wx.EVT_MENU, self.SaveAsNTD_CB, self.SaveAsNTD_Button)
-        #AsyncBind(wx.EVT_MENU, self.SaveAsNTD_CB, self, self.SaveAsNTD_Button, id=1)
+        self.Bind(wx.EVT_MENU, lambda x: self.SaveFileCB(x, 'ntd'), self.SaveAsNTD_Button)
         self.SaveAsText_Button = self._FileMenu.Append(wx.NewId(), "Save as Text", "Save the current table of connections in a human readable format. (CANNOT BE LOADED)")
-        self.Bind(wx.EVT_MENU, self.SaveAsText_CB, self.SaveAsText_Button)
-        #AsyncBind(wx.EVT_MENU, self.SaveAsText_CB, self, self.SaveAsText_Button, id=2)
+        self.Bind(wx.EVT_MENU, lambda x: self.SaveFileCB(x, 'txt'), self.SaveAsText_Button)
         self._MenuBar.Append(self._FileMenu, "File")
         # End File Menu
 
         # Sniffer Menu
-
         self._SnifferMenu = wx.Menu()
         # Sniffer Menu - Start Sniffer Button
         self.StartSniff_Button = self._SnifferMenu.Append(wx.NewId(), "Start Sniffer", "Start the background sniffer task.")
@@ -90,24 +96,16 @@ class MainWindow(wx.Frame):
         # Sniffer Menu - Add to MenuBar
         self._MenuBar.Append(self._SnifferMenu, "Sniffer")
 
+        # Sniffer Options Submenu
         self._OptionsSubMenu = wx.Menu()
         self.AutoRefreshToggle_Button = self._OptionsSubMenu.AppendCheckItem(wx.NewId(), "Auto Refresh", "Toggle Auto Refresh") # type: wx.MenuItem
         self.AutoRefreshToggle_Button.Check()
         self.Bind(wx.EVT_MENU, self.AutoRefreshToggleCB, self.AutoRefreshToggle_Button)
         self._SnifferMenu.Append(wx.ID_ANY, 'Options', self._OptionsSubMenu)
-
-        #imp = wx.Menu()
-        #imp.Append(wx.ID_ANY, 'SubMenu 1')
-        #imp.Append(wx.ID_ANY, 'SubMenu 2')
-        #imp.Append(wx.ID_ANY, 'SubMenu 3')
-        # append submenu with menuitem
-        #fileMenu.AppendMenu(wx.ID_ANY, 'MenuItem', imp)
-        #menubar.Append(fileMenu, '&Menu')
-        #self.SetMenuBar(menubar)
-
-        # End # Sniffer Menu
+        # End Sniffer Menu
 
         self.SetMenuBar(self._MenuBar)
+        # End Menu Bar
 
         # Status Bar
         self._StatusBar = self.CreateStatusBar(2)
@@ -152,8 +150,9 @@ class MainWindow(wx.Frame):
         self.SetSize((1280, 1024))
         self.SetTitle("Networking Tools")
         self.SetBackgroundColour(wx.Colour(255, 255, 255))
+
+        # Create Grid with same number of connections if any were loaded before grid was initialized
         r=len(self.Data.GetAllConnections())
-        # This is to create the grid with same rows as database.
         self.ViewGrid.CreateGrid(r, 10)
         self.ViewGrid.SetColLabelValue(0, "Connection")
         self.ViewGrid.SetColSize(0, 300)
@@ -206,7 +205,6 @@ class MainWindow(wx.Frame):
         self.ViewGrid.SetCellValue(row, col, value)
 
     def refresh_data(self):
-        self.SortBy = 'PacketCount'
         all_conn = sorted(self.Data.GetAllConnections(), key=lambda x: x.PacketCount, reverse=True)
         for row in range (0, len(all_conn)):
             host = all_conn[row]
@@ -264,6 +262,7 @@ class MainWindow(wx.Frame):
         webbrowser.open(url)
 
     def GridRightClickHandler(self, event: wx.grid.GridEvent):
+        """Handles right click events for self.ViewGrid - EVT_GRID_CMD_CELL_RIGHT_CLICK"""
         row = event.GetRow()
         col = event.GetCol()
 
@@ -273,78 +272,70 @@ class MainWindow(wx.Frame):
         _Menu.Append(_Item1)
         _Menu.Bind(wx.EVT_MENU, lambda e: self.onCopy(e, (row, col)), _Item1)
 
+        # If right click on IP Column offer option to open Ipinfo.ip/<IP>
         if col == 1:
-            _Item2 = wx.MenuItem(_Menu, wx.NewId(), 'Open Ipinfo.io')
+            _IP = self.ViewGrid.GetCellValue(row, col)
+            _Item2 = wx.MenuItem(_Menu, wx.NewId(), f'Open Ipinfo.io/{_IP}')
             _Menu.Append(_Item2)
             _Menu.Bind(wx.EVT_MENU, lambda e: self.onOpenIPInfo(e, (row, col)), _Item2)
 
+        # Cause a Menu to popup on cursors position.
         self.PopupMenu(_Menu, event.GetPosition())
         event.Skip()
 
-    def AutoRefreshToggleCB(self, event):
+    def AutoRefreshToggleCB(self, _event):
+        """MenuBar -> Sniffer -> Options -> Autorefresh callback"""
         self.AutoRefresh = self.AutoRefreshToggle_Button.IsChecked()
 
-    def SaveAsNTD_CB(self, event):
-        loop = asyncio.get_running_loop()
-        with wx.FileDialog(self, f"Save NTD file", wildcard=f"NTD files (*.ntd)|*.ntd",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+    class _SaveFileAsync(threading.Thread):
+        def __init__(self, data, pathname, filetype):
+            threading.Thread.__init__(self) # Must be invoked first when subclassing a Thread
+            self.setName(f'SaveFileAsyncThread')
+            self.Data = data
+            self.FilePath = pathname
+            self.FileType = filetype
+            self.start()
 
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return     # the user changed their mind
-
-            # save the current contents in the file
-            pathname = fileDialog.GetPath()
-
-        loop.create_task(self.__SaveNTDAsync(pathname))
-        return
-
-    def SaveAsText_CB(self, event):
-        loop = asyncio.get_running_loop()
-        with wx.FileDialog(self, f"Save NTD file", wildcard=f"NTD files (*.ntd)|*.ntd",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
-
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return     # the user changed their mind
-
-            # save the current contents in the file
-            pathname = fileDialog.GetPath()
-        loop.create_task(self.__SaveTXTAsync(pathname))
-
-    def __OpenFile(self, file_type):
-        with wx.FileDialog(self, "Open NTD file", wildcard="NTD files (*.ntd)|*.ntd",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
-
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return     # the user changed their mind
-
-            # Proceed loading the file chosen by the user
-            pathname = fileDialog.GetPath()
+        def _SaveAsTXT(self):
+            """Save to text file in human readable format."""
             try:
-                with bz2.BZ2File(pathname,'rb') as bz2file:
-                    #data = json.load(file)
-                    data = pickle.load(bz2file)
-                    self.Data.SetConnectionsDict(data)
+                with open(self.FilePath, 'w') as file:
+                    for i in self.Data.GetAllConnections(): # type: HostData
+                        file.writelines(
+                            f'EndPoint: {i.GetRemoteEndPoint()}\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- '
+                            f'PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}'
+                            f'PID: {i.GetPID()} FIRST: {i.FirstSeen} LAST: {i.LastSeen}\n')
             except IOError:
-                wx.LogError("Cannot open file '%s'." % pathname)
+                wx.LogError(f"Cannot save current data as {self.FileType} in file {self.FilePath}.")
 
-    async def __SaveNTDAsync(self, pathname):
-        try:
-            with bz2.BZ2File(pathname, 'wb') as bz2file:
-                loop = asyncio.get_running_loop()
-                data = self.Data.GetConnectionsDict()
-                await loop.run_in_executor(None, pickle.dump, (data, bz2file))
-        except IOError:
-            wx.LogError("Cannot save current data in file '%s'." % pathname)
+        def _SaveAsNTD(self):
+            """Save file as bz2 compressed, python pickled, class data."""
+            try:
+                with bz2.BZ2File(self.FilePath, 'wb') as bz2file:
+                    pickle.dump(self.Data, bz2file)
+            except IOError:
+                wx.LogError(f"Cannot save current data as {self.FileType} in file {self.FilePath}.")
 
-    def __WriteToTXT(self, file):
-        for i in self.Data.GetAllConnections():
-            file.writelines(
-                f'EndPoint: {i.GetRemoteEndPoint()}\t\t\t\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}\n')
+        def run(self) -> None:
+            """Start background thread. (Is called automatically after class initialized)"""
+            if self.FileType.lower() == 'ntd':
+                self._SaveAsNTD()
+            elif self.FileType.lower() == 'txt':
+                self._SaveAsTXT()
 
-    async def __SaveTXTAsync(self, pathname):
-        try:
-            with open(pathname, 'w') as file:
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, self.__WriteToTXT, file)
-        except IOError:
-            wx.LogError("Cannot save current data in file '%s'." % pathname)
+            time.sleep(2)
+            print("Finished background file write to", self.FilePath)
+            return None
+
+    def SaveFileCB(self, _event, filetype: str):
+        """Called by save as dialog, pass a supported filetype via lambda"""
+        with wx.FileDialog(self, f"Save {filetype.upper()} file", wildcard=f"{filetype.upper()} files (*.{filetype.lower()})|*.{filetype.lower()}",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # save the current contents in the file
+            pathname = fileDialog.GetPath()
+        data = self.Data.GetConnectionsDict()
+        self._SaveFileAsync(data, pathname, filetype)

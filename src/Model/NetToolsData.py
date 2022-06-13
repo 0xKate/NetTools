@@ -26,7 +26,7 @@ import asyncio
 import contextlib
 from multiprocessing.pool import ThreadPool
 from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, ValuesView, Union
 from datetime import datetime
 
 
@@ -50,6 +50,7 @@ PROTO_MAP6 = {
 }
 
 class NetToolsData:
+    __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver", "Connections", "SnifferEvent", "LocalIP", "loop", "ListAllSockets"]
     def __init__(self):
         self.Sniffing = False
         self.BackgroundThreads = 0
@@ -59,10 +60,9 @@ class NetToolsData:
         self.LocalIP = get_if_addr(conf.iface)
         self.loop = asyncio.get_running_loop()
         self.ListAllSockets = psutil.net_connections(kind='inet4')
-        #print(self.ListAllSockets)
 
     ## - Helper Functions - ##
-    def _FindTrafficSocketData(self, signature: Tuple[str, int, int], update=False) -> Tuple[int, str, int ]:
+    def _FindTrafficSocketData(self, signature: Tuple[str, int, int], update=False) -> Union[Tuple[int, str, int ],None]:
         """
         _FindTrafficSocketData(signature) -> ()\n
         :param signature: The connection signature of (str(IP), int(port), int(ENUM(PROTO)))
@@ -72,9 +72,6 @@ class NetToolsData:
         if update:
             self.ListAllSockets = psutil.net_connections(kind='inet4')
         _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd) for x in self.ListAllSockets if len(x.raddr) == 2}
-        #print(_dict)
-        #print(signature)
-        #print(_dict[signature])
         if signature not in _dict:
             if update is False:
                 return self._FindTrafficSocketData(signature, update=True)
@@ -89,7 +86,6 @@ class NetToolsData:
         :param ip: The hosts ip address ie. 192.168.1.1
         :return: Return the fqdn (a string of the form 'sub.example.com') for a host.
         """
-        # print('ThreadOpened')
         self.BackgroundThreads += 1
         loop = asyncio.get_running_loop()
         event = asyncio.Event()
@@ -103,20 +99,18 @@ class NetToolsData:
             event.clear()
             pool.close()
             pool.terminate()
-            # print('ThreadClosed')
             self.BackgroundThreads -= 1
             return result
 
     ## - Backend Data Manipulation - ##
 
     async def _BGSniffer(self):
-        # filter=f'host 188.138.40.87 or host 51.178.64.97 or host {WOW_WORLD_SERVER}'
-        self.SnifferTask = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp")
-        self.SnifferTask.start()
+        _SnifferTask = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
+        _SnifferTask.start()
         self.Sniffing = True
         await self.SnifferEvent.wait()
-        if self.SnifferTask.running:
-            self.SnifferTask.stop()
+        if _SnifferTask.running:
+            _SnifferTask.stop()
         self.Sniffing = False
         self.SnifferEvent.clear()
 
@@ -165,7 +159,6 @@ class NetToolsData:
                     direction = 'Outgoing'
                     remote_socket = (pkt[IP].dst, int(pkt[UDP].dport))
                     local_socket = (self.LocalIP, int(pkt[UDP].sport))
-            #print(f'{proto} and {direction} and {remote_socket} and {local_socket}')
             if proto is not None\
                     and direction is not None \
                     and remote_socket is not None\
@@ -190,9 +183,7 @@ class NetToolsData:
     def GetConnectionsDict(self):
         return self.Connections
 
-    def GetAllConnections(self):
-        # all_conn = self.UDPConnections | self.TCPConnections
-        # return all_conn.values()
+    def GetAllConnections(self) -> ValuesView[HostData,  dict[tuple[str, int, int], HostData]]:
         return self.Connections.values()
 
     def GetNumBGThreads(self):
