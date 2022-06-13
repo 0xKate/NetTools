@@ -9,7 +9,8 @@ from wxasync import StartCoroutine
 from Model.NetToolsData import NetToolsData
 
 class ConnectionsDataGridContainer(wx.ScrolledWindow):
-    """A scrolled window, holding a sizer, holding a DataGrid, contains all bindings to update grid based on data source."""
+    """A scrolled window, holding a sizer, holding a DataGrid,
+     contains all bindings to update grid based on data source."""
     def __init__(self, parentPanel, dataSource: NetToolsData, *args, **kwargs):
         self.ParentPanel = parentPanel
         self.DataSource = dataSource

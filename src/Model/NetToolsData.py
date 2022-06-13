@@ -54,7 +54,8 @@ PROTO_MAP6 = {
 
 class NetToolsData:
     """ Main DataModel of the application"""
-    __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver", "Connections", "SnifferEvent", "LocalIP", "loop", "ListAllSockets"]
+    __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver",
+                 "Connections", "SnifferEvent", "LocalIP", "loop", "ListAllSockets"]
     def __init__(self):
         self.Sniffing = False
         self.BackgroundThreads = 0
@@ -75,7 +76,8 @@ class NetToolsData:
         """
         if update:
             self.ListAllSockets = psutil.net_connections(kind='inet4')
-        _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd) for x in self.ListAllSockets if len(x.raddr) == 2}
+        _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd)
+                 for x in self.ListAllSockets if len(x.raddr) == 2}
         if signature not in _dict:
             if update is False:
                 return self._FindTrafficSocketData(signature, update=True)
@@ -110,7 +112,8 @@ class NetToolsData:
 
     ## - Backend Data Manipulation - ##
     async def _BGSnifferAsync(self):
-        sniffer_task = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
+        sniffer_task = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0,
+                                    filter="tcp or udp and not host 127.0.0.1")
         sniffer_task.start()
         self.Sniffing = True
         await self.SnifferEvent.wait()
@@ -188,7 +191,7 @@ class NetToolsData:
     def GetConnectionsDict(self):
         return self.Connections
 
-    def GetAllConnections(self):# -> ValuesView[HostData,  dict[tuple[str, int, int], HostData]]:
+    def GetAllConnections(self):
         return self.Connections.values()
 
     def GetNumBGThreads(self):

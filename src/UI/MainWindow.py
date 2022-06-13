@@ -63,9 +63,13 @@ class MainWindow(wx.Frame):
         self._FileMenu = wx.Menu()
         self.Quit_Button = self._FileMenu.Append(wx.NewId(), "Quit", "Exits the application.") # type: wx.MenuItem
         self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.Exit.value), self.Quit_Button)
-        self.SaveAsNTD_Button = self._FileMenu.Append(wx.NewId(), "Save as NTD", "Save the current table of connections to a loadable file format") # type: wx.MenuItem
+        self.SaveAsNTD_Button = self._FileMenu.Append(
+            wx.NewId(), "Save as NTD", "Save the current table of connections "
+                                       "to a loadable file format") # type: wx.MenuItem
         self.Bind(wx.EVT_MENU, lambda x: self.SaveFileCB(x, 'ntd'), self.SaveAsNTD_Button)
-        self.SaveAsText_Button = self._FileMenu.Append(wx.NewId(), "Save as Text", "Save the current table of connections in a human readable format. (CANNOT BE LOADED)") # type: wx.MenuItem
+        self.SaveAsText_Button = self._FileMenu.Append(
+            wx.NewId(), "Save as Text", "Save the current table of connections "
+                                        "in a human readable format. (CANNOT BE LOADED)") # type: wx.MenuItem
         self.Bind(wx.EVT_MENU, lambda x: self.SaveFileCB(x, 'txt'), self.SaveAsText_Button)
         self._MenuBar.Append(self._FileMenu, "File")
         # End File Menu
@@ -73,17 +77,20 @@ class MainWindow(wx.Frame):
         # Sniffer Menu
         self._SnifferMenu = wx.Menu()
         # Sniffer Menu - Start Sniffer Button
-        self.StartSniff_Button = self._SnifferMenu.Append(wx.NewId(), "Start Sniffer", "Start the background sniffer task.") # type: wx.MenuItem
+        self.StartSniff_Button = self._SnifferMenu.Append(
+            wx.NewId(), "Start Sniffer", "Start the background sniffer task.") # type: wx.MenuItem
         self.Bind(wx.EVT_MENU, self.StartSniffingCB, self.StartSniff_Button)
         # Sniffer Menu - Stop Sniffer Button
-        self.StopSniff_Button = self._SnifferMenu.Append(wx.NewId(), "Stop Sniffer", "Stop the background sniffer task.") # type: wx.MenuItem
+        self.StopSniff_Button = self._SnifferMenu.Append(
+            wx.NewId(), "Stop Sniffer", "Stop the background sniffer task.") # type: wx.MenuItem
         self.Bind(wx.EVT_MENU, self.StopSniffingCB, self.StopSniff_Button)
         # Sniffer Menu - Add to MenuBar
         self._MenuBar.Append(self._SnifferMenu, "Sniffer")
 
         # Sniffer Options Submenu
         self._OptionsSubMenu = wx.Menu()
-        self.AutoRefreshToggle_Button = self._OptionsSubMenu.AppendCheckItem(wx.NewId(), "Auto Refresh", "Toggle Auto Refresh") # type: wx.MenuItem
+        self.AutoRefreshToggle_Button = self._OptionsSubMenu.AppendCheckItem(
+            wx.NewId(), "Auto Refresh", "Toggle Auto Refresh") # type: wx.MenuItem
         self.AutoRefreshToggle_Button.Check()
         self.Bind(wx.EVT_MENU, self.AutoRefreshToggleCB, self.AutoRefreshToggle_Button)
         self._SnifferMenu.Append(wx.ID_ANY, 'Options', self._OptionsSubMenu)
@@ -106,7 +113,6 @@ class MainWindow(wx.Frame):
         self.MainPanel = wx.Panel(self, wx.ID_ANY)
         self.ListPanel = wx.Panel(self.MainPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
         self.ContentPanel = wx.Panel(self.MainPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
-        self.ConnectionsDataGridContainer = ConnectionsDataGridContainer(self.ContentPanel, self.Data ,wx.ID_ANY, style=wx.BORDER_RAISED)
         self.ButtonPanel = wx.Panel(self.ContentPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
 
         # Widgets
@@ -115,6 +121,9 @@ class MainWindow(wx.Frame):
         self.TestButton_3 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 3")
         self.TestButton_4 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 4")
 
+        # Custom UI Containers
+        self.ConnectionsDataGridContainer = ConnectionsDataGridContainer(self.ContentPanel, self.Data, wx.ID_ANY,
+                                                                         style=wx.BORDER_RAISED)
         # Layout
         self.__set_properties()
         self.__do_layout()
@@ -191,7 +200,8 @@ class MainWindow(wx.Frame):
 
     def SaveFileCB(self, _event, filetype: str):
         """Called by save as dialog, pass a supported filetype via lambda"""
-        with wx.FileDialog(self, f"Save {filetype.upper()} file", wildcard=f"{filetype.upper()} files (*.{filetype.lower()})|*.{filetype.lower()}",
+        with wx.FileDialog(self, f"Save {filetype.upper()} file",
+                           wildcard=f"{filetype.upper()} files (*.{filetype.lower()})|*.{filetype.lower()}",
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
 
             if fileDialog.ShowModal() == wx.ID_CANCEL:

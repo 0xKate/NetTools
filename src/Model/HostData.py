@@ -27,7 +27,9 @@ import psutil
 
 
 class HostData:
-    __slots__ = ['FirstSeen','LastSeen','ProtoType','PacketCount','IncomingCount','OutgoingCount','BandwidthUsage','UploadUsage','DownloadUsage','LocalPort','LocalIP','RemotePort','RemoteIP','RemoteHostname','SocketData',]
+    __slots__ = ['FirstSeen','LastSeen','ProtoType','PacketCount','IncomingCount','OutgoingCount',
+                 'BandwidthUsage','UploadUsage','DownloadUsage','LocalPort','LocalIP','RemotePort',
+                 'RemoteIP','RemoteHostname','SocketData',]
     def __init__(self, LocalIP, LocalPort, RemoteIP, RemotePort, RemoteHostname, ProtoType, socket_data):
         self.FirstSeen = datetime.now()
         self.LastSeen = datetime.now()
@@ -56,7 +58,8 @@ class HostData:
             self.UploadUsage += pkt_size
 
     def __str__(self):
-        return f'RemoteHost: {self.RemoteHostname}:{self.RemotePort} - PacketCount: {self.PacketCount} Incoming: {self.IncomingCount} Outgoing: {self.OutgoingCount}'
+        return f'RemoteHost: {self.RemoteHostname}:{self.RemotePort} - ' \
+               f'PacketCount: {self.PacketCount} Incoming: {self.IncomingCount} Outgoing: {self.OutgoingCount}'
 
     def SetRemoteHostname(self, NewRemoteHostname):
         self.RemoteHostname = NewRemoteHostname

@@ -55,7 +55,8 @@ class SaveFileAsync(threading.Thread):
                 for i in self.Data:  # type: HostData
                     file.writelines(
                         f'EndPoint: {i.GetRemoteEndPoint()}\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- '
-                        f'PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}'
+                        f'PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\t'
+                        f'BW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}'
                         f'PID: {i.GetPID()} FIRST: {i.FirstSeen} LAST: {i.LastSeen}\n')
         except IOError:
             wx.LogError(f"Cannot save current data as {self.FileType} in file {self.FilePath}.")
