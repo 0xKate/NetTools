@@ -22,19 +22,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+# Traffic[process][connection_dict_key]
+
 import asyncio
 import bz2
+import contextlib
 import json
 import pickle
 import time
 import webbrowser
+from multiprocessing.pool import ThreadPool
+
+import psutil as psutil
 import pyperclip as pc
 
 import pubsub.pub
 import wx
 from pubsub import pub
 from wx.grid import Grid
-from wxasync import StartCoroutine
+from wxasync import StartCoroutine, AsyncBind
 
 from Enums import EventMsg
 from UI.TrayIcon import TrayIcon
@@ -62,11 +68,13 @@ class MainWindow(wx.Frame):
         # File Menu
         self._FileMenu = wx.Menu()
         self.Quit_Button = self._FileMenu.Append(wx.NewId(), "Quit", "Exits the application.")
-        self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.ExitGame.value), self.Quit_Button)
+        self.Bind(wx.EVT_MENU, lambda x: pub.sendMessage(EventMsg.Exit.value), self.Quit_Button)
         self.SaveAsNTD_Button = self._FileMenu.Append(wx.NewId(), "Save as NTD", "Save the current table of connections to a loadable file format")
         self.Bind(wx.EVT_MENU, self.SaveAsNTD_CB, self.SaveAsNTD_Button)
+        #AsyncBind(wx.EVT_MENU, self.SaveAsNTD_CB, self, self.SaveAsNTD_Button, id=1)
         self.SaveAsText_Button = self._FileMenu.Append(wx.NewId(), "Save as Text", "Save the current table of connections in a human readable format. (CANNOT BE LOADED)")
         self.Bind(wx.EVT_MENU, self.SaveAsText_CB, self.SaveAsText_Button)
+        #AsyncBind(wx.EVT_MENU, self.SaveAsText_CB, self, self.SaveAsText_Button, id=2)
         self._MenuBar.Append(self._FileMenu, "File")
         # End File Menu
 
@@ -141,12 +149,12 @@ class MainWindow(wx.Frame):
         StartCoroutine(self.update_data, self)
 
     def __set_properties(self):
-        self.SetSize((1006, 693))
+        self.SetSize((1280, 1024))
         self.SetTitle("Networking Tools")
         self.SetBackgroundColour(wx.Colour(255, 255, 255))
         r=len(self.Data.GetAllConnections())
         # This is to create the grid with same rows as database.
-        self.ViewGrid.CreateGrid(r, 7)
+        self.ViewGrid.CreateGrid(r, 10)
         self.ViewGrid.SetColLabelValue(0, "Connection")
         self.ViewGrid.SetColSize(0, 300)
         self.ViewGrid.SetColLabelValue(1, "IP")
@@ -161,7 +169,12 @@ class MainWindow(wx.Frame):
         self.ViewGrid.SetColSize(5, 50)
         self.ViewGrid.SetColLabelValue(6, "Bandwidth")
         self.ViewGrid.SetColSize(6, 75)
-
+        self.ViewGrid.SetColLabelValue(7, "PID")
+        self.ViewGrid.SetColSize(7, 50)
+        self.ViewGrid.SetColLabelValue(8, "Last Seen")
+        self.ViewGrid.SetColSize(8, 150)
+        self.ViewGrid.SetColLabelValue(9, "First Seen")
+        self.ViewGrid.SetColSize(9, 159)
         self.refresh_data()
 
     def __do_layout(self):
@@ -207,6 +220,10 @@ class MainWindow(wx.Frame):
             self.ViewGrid.SetCellValue(row, 4, str(host.IncomingCount))
             self.ViewGrid.SetCellValue(row, 5, str(host.OutgoingCount))
             self.ViewGrid.SetCellValue(row, 6, str(host.BandwidthUsage))
+            self.ViewGrid.SetCellValue(row, 7, str(host.GetPID()))
+            self.ViewGrid.SetCellValue(row, 8, str(host.LastSeen.replace(microsecond=0)))
+            self.ViewGrid.SetCellValue(row, 9, str(host.FirstSeen.replace(microsecond=0)))
+
 
     async def update_data(self):
         while True:
@@ -268,12 +285,32 @@ class MainWindow(wx.Frame):
         self.AutoRefresh = self.AutoRefreshToggle_Button.IsChecked()
 
     def SaveAsNTD_CB(self, event):
-        self.SaveFile('NTD')
+        loop = asyncio.get_running_loop()
+        with wx.FileDialog(self, f"Save NTD file", wildcard=f"NTD files (*.ntd)|*.ntd",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # save the current contents in the file
+            pathname = fileDialog.GetPath()
+
+        loop.create_task(self.__SaveNTDAsync(pathname))
+        return
 
     def SaveAsText_CB(self, event):
-        self.SaveFile('txt')
+        loop = asyncio.get_running_loop()
+        with wx.FileDialog(self, f"Save NTD file", wildcard=f"NTD files (*.ntd)|*.ntd",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
 
-    def OpenFile(self, file_type):
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # save the current contents in the file
+            pathname = fileDialog.GetPath()
+        loop.create_task(self.__SaveTXTAsync(pathname))
+
+    def __OpenFile(self, file_type):
         with wx.FileDialog(self, "Open NTD file", wildcard="NTD files (*.ntd)|*.ntd",
                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
 
@@ -290,28 +327,24 @@ class MainWindow(wx.Frame):
             except IOError:
                 wx.LogError("Cannot open file '%s'." % pathname)
 
-    def SaveFile(self, file_type):
-        with wx.FileDialog(self, f"Save {file_type} file", wildcard=f"{file_type} files (*.{file_type})|*.{file_type}",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+    async def __SaveNTDAsync(self, pathname):
+        try:
+            with bz2.BZ2File(pathname, 'wb') as bz2file:
+                loop = asyncio.get_running_loop()
+                data = self.Data.GetConnectionsDict()
+                await loop.run_in_executor(None, pickle.dump, (data, bz2file))
+        except IOError:
+            wx.LogError("Cannot save current data in file '%s'." % pathname)
 
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return     # the user changed their mind
+    def __WriteToTXT(self, file):
+        for i in self.Data.GetAllConnections():
+            file.writelines(
+                f'EndPoint: {i.GetRemoteEndPoint()}\t\t\t\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}\n')
 
-            # save the current contents in the file
-            pathname = fileDialog.GetPath()
-            if file_type == 'NTD':
-                try:
-                    with bz2.BZ2File(pathname, 'wb') as bz2file:
-                        pickle.dump(self.Data.GetConnectionsDict(), bz2file)
-                        #json.dump(self.Data.GetConnectionsDict(), file)
-                except IOError:
-                    wx.LogError("Cannot save current data in file '%s'." % pathname)
-            elif file_type == 'txt':
-                try:
-                    with open(pathname, 'w') as file:
-                        for i in self.Data.GetAllConnections():
-                            file.writelines(f'EndPoint: {i.GetRemoteEndPoint()}\t\t\t\t<-> {i.LocalIP}:{i.LocalPort} {i.ProtoType} -- PKT: {i.PacketCount}\tIN: {i.IncomingCount}\tOUT: {i.OutgoingCount}\tBW: {i.BandwidthUsage}\tIN: {i.DownloadUsage}\tOUT: {i.DownloadUsage}\n')
-                        #pickle.dump(self.Data.GetConnectionsDict(), bz2file)
-                        #json.dump(self.Data.GetConnectionsDict(), file)
-                except IOError:
-                    wx.LogError("Cannot save current data in file '%s'." % pathname)
+    async def __SaveTXTAsync(self, pathname):
+        try:
+            with open(pathname, 'w') as file:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.__WriteToTXT, file)
+        except IOError:
+            wx.LogError("Cannot save current data in file '%s'." % pathname)

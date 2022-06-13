@@ -21,9 +21,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+from datetime import datetime
+
+import psutil
+
 
 class HostData:
-    def __init__(self, LocalIP, LocalPort, RemoteIP, RemotePort, RemoteHostname, ProtoType):
+    def __init__(self, LocalIP, LocalPort, RemoteIP, RemotePort, RemoteHostname, ProtoType, socket_data):
+        self.FirstSeen = datetime.now()
+        self.LastSeen = datetime.now()
         self.ProtoType = ProtoType
         self.PacketCount = 0
         self.IncomingCount = 0
@@ -36,6 +42,7 @@ class HostData:
         self.RemotePort = RemotePort
         self.RemoteIP = RemoteIP
         self.RemoteHostname = RemoteHostname
+        self.SocketData = socket_data
 
     def IncrementCount(self, conn_direction, pkt_size):
         self.PacketCount += 1
@@ -55,3 +62,13 @@ class HostData:
 
     def GetRemoteEndPoint(self):
         return f'{self.RemoteHostname}:{self.RemotePort}'
+
+    def GetPID(self):
+            if self.SocketData:
+                return self.SocketData[0]
+
+    def SetLastSeen(self, param):
+        self.LastSeen = param
+
+    def SetSocketData(self, socket_data):
+        self.SocketData = socket_data

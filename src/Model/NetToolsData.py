@@ -25,18 +25,29 @@ SOFTWARE.
 import asyncio
 import contextlib
 from multiprocessing.pool import ThreadPool
-from socket import gethostbyaddr
+from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
 from typing import Dict, Tuple
+from datetime import datetime
 
-import pubsub.pub
+
+import psutil
 from scapy.arch import get_if_addr
 from scapy.config import conf
 from scapy.layers.inet import TCP, UDP, IP
 from scapy.sendrecv import AsyncSniffer
 
+import Enums
 from Enums import PROTO
 from Model.HostData import HostData
 
+PROTO_MAP = {
+    (AF_INET, SOCK_STREAM): PROTO.TCP.value,
+    (AF_INET, SOCK_DGRAM): PROTO.UDP.value,
+}
+PROTO_MAP6 = {
+    (AF_INET6, SOCK_STREAM): 'TCP6',
+    (AF_INET6, SOCK_DGRAM): 'UDP6',
+}
 
 class NetToolsData:
     def __init__(self):
@@ -47,10 +58,32 @@ class NetToolsData:
         self.SnifferEvent = asyncio.Event()
         self.LocalIP = get_if_addr(conf.iface)
         self.loop = asyncio.get_running_loop()
+        self.ListAllSockets = psutil.net_connections(kind='inet4')
+        #print(self.ListAllSockets)
 
     ## - Helper Functions - ##
+    def _FindTrafficSocketData(self, signature: Tuple[str, int, int], update=False) -> Tuple[int, str, int ]:
+        """
+        _FindTrafficSocketData(signature) -> ()\n
+        :param signature: The connection signature of (str(IP), int(port), int(ENUM(PROTO)))
+        :param update: True if you want to skip checking the cache first.
+        :return: A tuple of (PID, CONN_STATUS, FILE_DESCRIPTOR)
+        """
+        if update:
+            self.ListAllSockets = psutil.net_connections(kind='inet4')
+        _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd) for x in self.ListAllSockets if len(x.raddr) == 2}
+        #print(_dict)
+        #print(signature)
+        #print(_dict[signature])
+        if signature not in _dict:
+            if update is False:
+                return self._FindTrafficSocketData(signature, update=True)
+            else:
+                return None
+        else:
+            return _dict[signature]
 
-    async def HostFromAddr(self, ip):
+    async def _GetHostByAddrAsync(self, ip):
         """
         GetHostFromAddr(ip) -> fqdn\n
         :param ip: The hosts ip address ie. 192.168.1.1
@@ -92,10 +125,17 @@ class NetToolsData:
                                 conn_type, conn_direction, pkt_size):
         if conn_signature in self.Connections:
             self.Connections[conn_signature].IncrementCount(conn_direction, pkt_size)
+            time_delta = datetime.now() - self.Connections[conn_signature].LastSeen
+            if time_delta.total_seconds() / 60 > 60:
+                socket_data = self._FindTrafficSocketData(conn_signature)
+                self.Connections[conn_signature].SetSocketData(socket_data)
+            self.Connections[conn_signature].SetLastSeen(datetime.now())
         else:
-            self.Connections[conn_signature] = HostData(*local_host, *remote_host, remote_host[0], conn_type)
+            socket_data = self._FindTrafficSocketData(conn_signature)
+            data = HostData(*local_host, *remote_host, remote_host[0], conn_type, socket_data)
+            self.Connections[conn_signature] = data
             self.Connections[conn_signature].IncrementCount(conn_direction, pkt_size)
-            hostname = await self.HostFromAddr(conn_signature[0])
+            hostname = await self._GetHostByAddrAsync(conn_signature[0])
             if hostname:
                 self.Connections[conn_signature].SetRemoteHostname(hostname)
 
