@@ -33,7 +33,7 @@ from wxasync import StartCoroutine
 
 from Enums import EventMsg
 from Model.SaveFileAsync import SaveFileAsync
-from NetToolsApp import NetToolsData
+from Model.NetToolsData import NetToolsData
 from UI.TrayIcon import TrayIcon
 from UI.Widgets.ConnectionsDataGrid import ConnectionsDataGridContainer
 
@@ -41,10 +41,6 @@ from UI.Widgets.ConnectionsDataGrid import ConnectionsDataGridContainer
 class MainWindow(wx.Frame):
     """The main wx.Frame/Window of the program. Holds all panels, sizers, widgets, etc..."""
     def __init__(self, _NetToolsData: NetToolsData, *args, **kwds):
-        # Custom View Properties
-        self.ViewGridSortBy = 'PacketCount'
-        self.AutoRefresh = True
-        self.RefreshRate = 1
         # Model
         self.Data = _NetToolsData
 

@@ -68,8 +68,9 @@ class HostData:
         return f'{self.RemoteHostname}:{self.RemotePort}'
 
     def GetPID(self):
-            if self.SocketData:
-                return self.SocketData[0]
+        if self.SocketData and self.SocketData[0]:
+            return self.SocketData[0]
+        return 0
 
     def SetLastSeen(self, param):
         self.LastSeen = param
