@@ -33,14 +33,14 @@ from wxasync import StartCoroutine
 
 from Enums import EventMsg
 from Model.SaveFileAsync import SaveFileAsync
-from Model.NetToolsData import NetToolsData
+from Model.NetworkSniffer import NetworkSniffer
 from UI.TrayIcon import TrayIcon
 from UI.Widgets.ConnectionsDataGrid import ConnectionsDataGridContainer
 
 
 class MainWindow(wx.Frame):
     """The main wx.Frame/Window of the program. Holds all panels, sizers, widgets, etc..."""
-    def __init__(self, _NetToolsData: NetToolsData, *args, **kwds):
+    def __init__(self, _NetToolsData: NetworkSniffer, *args, **kwds):
         # Model
         self.Data = _NetToolsData
 
@@ -79,6 +79,7 @@ class MainWindow(wx.Frame):
         # Sniffer Menu - Stop Sniffer Button
         self.StopSniff_Button = self._SnifferMenu.Append(
             wx.NewId(), "Stop Sniffer", "Stop the background sniffer task.") # type: wx.MenuItem
+        self.StopSniff_Button.Enable(False)
         self.Bind(wx.EVT_MENU, self.StopSniffingCB, self.StopSniff_Button)
         # Sniffer Menu - Add to MenuBar
         self._MenuBar.Append(self._SnifferMenu, "Sniffer")
@@ -109,13 +110,13 @@ class MainWindow(wx.Frame):
         self.MainPanel = wx.Panel(self, wx.ID_ANY)
         self.ListPanel = wx.Panel(self.MainPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
         self.ContentPanel = wx.Panel(self.MainPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
-        self.ButtonPanel = wx.Panel(self.ContentPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
+        #self.ButtonPanel = wx.Panel(self.ContentPanel, wx.ID_ANY, style=wx.BORDER_RAISED)
 
         # Widgets
-        self.TestButton_1 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 1")
-        self.TestButton_2 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 2")
-        self.TestButton_3 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 3")
-        self.TestButton_4 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 4")
+        #self.TestButton_1 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 1")
+        #self.TestButton_2 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 2")
+        #self.TestButton_3 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 3")
+        #elf.TestButton_4 = wx.Button(self.ButtonPanel, wx.ID_ANY, "Test Button 4")
 
         # Custom UI Containers
         self.ConnectionsDataGridContainer = ConnectionsDataGridContainer(self.ContentPanel, self.Data, wx.ID_ANY,
@@ -125,10 +126,10 @@ class MainWindow(wx.Frame):
         self.__do_layout()
 
         # Bindings
-        self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_1, id=1)
-        self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_2, id=2)
-        self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_3, id=3)
-        self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_4, id=4)
+        #self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_1, id=1)
+        #self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_2, id=2)
+        #self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_3, id=3)
+        #self.Bind(wx.EVT_BUTTON, self.TestButtonCB, source=self.TestButton_4, id=4)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         StartCoroutine(self.UpdateClockLoopAsync, self)
 
@@ -145,13 +146,13 @@ class MainWindow(wx.Frame):
         self.ContentSizer = wx.BoxSizer(wx.VERTICAL)
         self.ContentSizer.Add(self.ConnectionsDataGridContainer, 10, wx.EXPAND, 0)
         self.ViewSizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.ContentSizer.Add(self.ButtonPanel, 1, wx.EXPAND, 0)
-        self.ButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.ButtonSizer.Add(self.TestButton_1, 1, wx.EXPAND, 0)
-        self.ButtonSizer.Add(self.TestButton_2, 1, wx.EXPAND, 0)
-        self.ButtonSizer.Add(self.TestButton_3, 1, wx.EXPAND, 0)
-        self.ButtonSizer.Add(self.TestButton_4, 1, wx.EXPAND, 0)
-        self.ButtonPanel.SetSizer(self.ButtonSizer)
+        #self.ContentSizer.Add(self.ButtonPanel, 1, wx.EXPAND, 0)
+        #self.ButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        #self.ButtonSizer.Add(self.TestButton_1, 1, wx.EXPAND, 0)
+        #self.ButtonSizer.Add(self.TestButton_2, 1, wx.EXPAND, 0)
+        #self.ButtonSizer.Add(self.TestButton_3, 1, wx.EXPAND, 0)
+        #self.ButtonSizer.Add(self.TestButton_4, 1, wx.EXPAND, 0)
+        #self.ButtonPanel.SetSizer(self.ButtonSizer)
         self.ContentPanel.SetSizer(self.ContentSizer)
         self.MainPanel.SetSizer(self.SubSizer)
         self.SetSizer(self.MainSizer)

@@ -24,12 +24,15 @@ SOFTWARE.
 
 import asyncio
 import contextlib
+import concurrent.futures
 
 # Included with Python
+import socket
 from multiprocessing.pool import ThreadPool
 from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
 from typing import Dict, Tuple, List, ValuesView, Union
 from datetime import datetime
+
 
 # 3rd Party Libraries
 import psutil
@@ -52,10 +55,29 @@ PROTO_MAP6 = {
     (AF_INET6, SOCK_DGRAM): 'UDP6',
 }
 
-class NetToolsData:
+class AppData:
+    Connections = {}
+    DNSRequests = {}
+    DHCPPackets = {}
+
+    @classmethod
+    def SetConnectionsDict(cls, new_dict):
+        cls.Connections = new_dict
+
+    @classmethod
+    def GetConnectionsDict(cls):
+        return cls.Connections
+
+    @classmethod
+    def GetAllConnections(cls):
+        return cls.Connections.values()
+
+
+
+class NetworkSniffer:
     """ Main DataModel of the application"""
     __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver",
-                 "Connections", "SnifferEvent", "LocalIP", "loop", "ListAllSockets"]
+                 "Connections", "SnifferEvent", "LocalIP", "Loop", "LoopPool", "ListAllSockets"]
     def __init__(self):
         self.Sniffing = False
         self.BackgroundThreads = 0
@@ -63,7 +85,8 @@ class NetToolsData:
         self.Connections = {} #type: Dict[Tuple[str, int, int], HostData]
         self.SnifferEvent = asyncio.Event()
         self.LocalIP = get_if_addr(conf.iface)
-        self.loop = asyncio.get_running_loop()
+        self.Loop = asyncio.get_running_loop()
+        self.LoopPool = concurrent.futures.ThreadPoolExecutor()
         self.ListAllSockets = psutil.net_connections(kind='inet4')
 
     ## - Helper Functions - ##
@@ -86,29 +109,22 @@ class NetToolsData:
         else:
             return _dict[signature]
 
-    # Something wrong with the Typing of callback=
-    # noinspection PyTypeChecker
-    async def _GetHostByAddrAsync(self, ip):
+    @staticmethod
+    def __TryGetHostFromAddr(ip, default):
+        try:
+            return socket.gethostbyaddr(ip)
+        except socket.herror as err:
+            # print(f'__GetHostFromAddrAsync - ERROR: [{type(err)}] {err}')
+            return default
+
+    async def GetHostFromAddrAsync(self, ip, default=None):
         """
         GetHostFromAddr(ip) -> fqdn\n
         :param ip: The hosts ip address ie. 192.168.1.1
+        :parameter default: The default return value if no hostname, error, or timeout.
         :return: Return the fqdn (a string of the form 'sub.example.com') for a host.
         """
-        self.BackgroundThreads += 1
-        loop = asyncio.get_running_loop()
-        event = asyncio.Event()
-        pool = ThreadPool(processes=1)
-
-        thread_result = pool.apply_async(gethostbyaddr, (ip,), callback=lambda x: loop.call_soon_threadsafe(event.set))
-
-        with contextlib.suppress(asyncio.TimeoutError):
-            if await asyncio.wait_for(event.wait(), 5):
-                result = thread_result.get()[0]
-            event.clear()
-            pool.close()
-            pool.terminate()
-            self.BackgroundThreads -= 1
-            return result
+        return await self.Loop.run_in_executor(self.LoopPool, self.__TryGetHostFromAddr, ip, default)
 
     ## - Backend Data Manipulation - ##
     async def _BGSnifferAsync(self):
@@ -137,9 +153,11 @@ class NetToolsData:
             data = HostData(*local_host, *remote_host, remote_host[0], conn_type, socket_data)
             self.Connections[conn_signature] = data
             self.Connections[conn_signature].IncrementCount(conn_direction, pkt_size)
-            hostname = await self._GetHostByAddrAsync(conn_signature[0])
+            hostname = await self.GetHostFromAddrAsync(conn_signature[0])
             if hostname:
-                self.Connections[conn_signature].SetRemoteHostname(hostname)
+                self.Connections[conn_signature].SetRemoteHostname(hostname[0])
+
+        AppData.Connections[conn_signature] = self.Connections[conn_signature]
 
     def _PacketCB(self, pkt: IP):
         proto = None
@@ -172,7 +190,7 @@ class NetToolsData:
                     and remote_socket is not None\
                     and local_socket is not None:
                 conn_signature = (str(remote_socket[0]), int(remote_socket[1]), int(proto.value))
-                self.loop.create_task(self._UpdateConnectionDataAsync(conn_signature, remote_socket, local_socket,
+                self.Loop.create_task(self._UpdateConnectionDataAsync(conn_signature, remote_socket, local_socket,
                                                              proto.name, direction, len(pkt)))
 
     ## - M.U.D - ##
@@ -183,7 +201,7 @@ class NetToolsData:
 
     def SniffStart(self):
         if not self.Sniffing:
-            self.loop.create_task(self._BGSnifferAsync())
+            self.Loop.create_task(self._BGSnifferAsync())
 
     def SetConnectionsDict(self, new_dict):
         self.Connections = new_dict

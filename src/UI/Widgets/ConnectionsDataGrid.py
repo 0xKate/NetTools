@@ -7,9 +7,7 @@ from wx.grid import Grid
 import pyperclip as pc
 from wxasync import StartCoroutine
 
-from Model.NetToolsData import NetToolsData
-
-GRID_MAP = {'Packets'}
+from Model.NetworkSniffer import NetworkSniffer
 
 class SortBy(Enum):
     Packets = 'PacketCount'
@@ -23,7 +21,7 @@ class SortBy(Enum):
 class ConnectionsDataGridContainer(wx.ScrolledWindow):
     """A scrolled window, holding a sizer, holding a DataGrid,
      contains all bindings to update grid based on data source."""
-    def __init__(self, parentPanel, dataSource: NetToolsData, *args, **kwargs):
+    def __init__(self, parentPanel, dataSource: NetworkSniffer, *args, **kwargs):
         self.SortDescending = True
         self.SortBy = SortBy.Packets
         self.ParentPanel = parentPanel

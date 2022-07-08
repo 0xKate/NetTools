@@ -28,16 +28,8 @@ import pubsub.pub
 import wx
 from wxasync import WxAsyncApp
 from Enums import EventMsg
-from Model.NetToolsData import NetToolsData
+from Model.NetworkSniffer import NetworkSniffer
 from UI.MainWindow import MainWindow
-
-class NetToolsApp:
-    def __init__(self):
-        self.NetToolsData = NetToolsData()
-        self.MainWindow = MainWindow(self.NetToolsData, None, wx.ID_ANY, "")
-
-    def Render(self):
-        self.MainWindow.Show()
 
 class WxAsyncEngine(WxAsyncApp):
     """ Main WxAsync Application """
@@ -60,8 +52,9 @@ class WxAsyncEngine(WxAsyncApp):
 
     async def _StartAsync(self):
         """ Blends the wxPython and asyncio event loops. """
-        self.App = NetToolsApp()
-        self.App.Render()
+        self.NetToolsData = NetworkSniffer()
+        self.MainWindow = MainWindow(self.NetToolsData, None, wx.ID_ANY, "")
+        self.MainWindow.Show()
         await self.MainLoop()
 
     def Start(self):
