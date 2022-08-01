@@ -76,14 +76,14 @@ class AppData:
 
 class NetworkSniffer:
     """ Main DataModel of the application"""
-    __slots__ = ["Sniffing", "BackgroundThreads", "ReverseResolver",
+    __slots__ = ["Sniffer", "Sniffing", "BackgroundThreads", "ReverseResolver",
                  "Connections", "SnifferEvent", "LocalIP", "Loop", "LoopPool", "ListAllSockets"]
     def __init__(self):
+        self.Sniffer = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
         self.Sniffing = False
         self.BackgroundThreads = 0
-        self.ReverseResolver = False
+        self.ReverseResolver = True
         self.Connections = {} #type: Dict[Tuple[str, int, int], HostData]
-        self.SnifferEvent = asyncio.Event()
         self.LocalIP = get_if_addr(conf.iface)
         self.Loop = asyncio.get_running_loop()
         self.LoopPool = concurrent.futures.ThreadPoolExecutor()
@@ -99,6 +99,7 @@ class NetworkSniffer:
         """
         if update:
             self.ListAllSockets = psutil.net_connections(kind='inet4')
+            #psutil.net_io_counters()
         _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd)
                  for x in self.ListAllSockets if len(x.raddr) == 2}
         if signature not in _dict:
@@ -126,18 +127,6 @@ class NetworkSniffer:
         """
         return await self.Loop.run_in_executor(self.LoopPool, self.__TryGetHostFromAddr, ip, default)
 
-    ## - Backend Data Manipulation - ##
-    async def _BGSnifferAsync(self):
-        sniffer_task = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0,
-                                    filter="tcp or udp and not host 127.0.0.1")
-        sniffer_task.start()
-        self.Sniffing = True
-        await self.SnifferEvent.wait()
-        if sniffer_task.running:
-            sniffer_task.stop()
-        self.Sniffing = False
-        self.SnifferEvent.clear()
-
     async def _UpdateConnectionDataAsync(self, conn_signature: Tuple[str, int, int],
                                 remote_host, local_host,
                                 conn_type, conn_direction, pkt_size):
@@ -153,9 +142,10 @@ class NetworkSniffer:
             data = HostData(*local_host, *remote_host, remote_host[0], conn_type, socket_data)
             self.Connections[conn_signature] = data
             self.Connections[conn_signature].IncrementCount(conn_direction, pkt_size)
-            hostname = await self.GetHostFromAddrAsync(conn_signature[0])
-            if hostname:
-                self.Connections[conn_signature].SetRemoteHostname(hostname[0])
+            if self.ReverseResolver:
+                hostname = await self.GetHostFromAddrAsync(conn_signature[0])
+                if hostname:
+                    self.Connections[conn_signature].SetRemoteHostname(hostname[0])
 
         AppData.Connections[conn_signature] = self.Connections[conn_signature]
 
@@ -193,15 +183,13 @@ class NetworkSniffer:
                 self.Loop.create_task(self._UpdateConnectionDataAsync(conn_signature, remote_socket, local_socket,
                                                              proto.name, direction, len(pkt)))
 
-    ## - M.U.D - ##
+    def SniffStart(self):
+        self.Sniffer.start()
+        self.Sniffing = True
 
     def SniffStop(self):
-        if self.Sniffing:
-            self.SnifferEvent.set()
-
-    def SniffStart(self):
-        if not self.Sniffing:
-            self.Loop.create_task(self._BGSnifferAsync())
+        self.Sniffer.stop()
+        self.Sniffing = False
 
     def SetConnectionsDict(self, new_dict):
         self.Connections = new_dict

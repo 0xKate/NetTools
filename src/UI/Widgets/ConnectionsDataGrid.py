@@ -23,11 +23,12 @@ SOFTWARE.
 """
 
 import asyncio
+import logging
 import webbrowser
 from enum import Enum
 
 import wx
-from wx.grid import Grid
+from wx.grid import Grid, GridTableBase, GridStringTable
 import pyperclip as pc
 from wxasync import StartCoroutine
 
@@ -52,14 +53,25 @@ class ConnectionsDataGridContainer(wx.ScrolledWindow):
         self.DataSource = dataSource
         self.AutoRefresh = True
         self.RefreshRate = 1
+        self.Refreshing = False
         wx.ScrolledWindow.__init__(self, parentPanel, *args, **kwargs)
         self.SetScrollRate(10, 10)
         self.DataGrid = Grid(self, wx.ID_ANY, size=(1, 1))
+        #self.DataGrid.GetGridCursorCoords()
+        #self.DataGrid.DisableDragGridSize()
+        self.DataGrid.DisableDragRowSize()
+        #self.DataGrid.DisableCellEditControl()
+        self.DataGrid.EnableEditing(False)
+        #self.DataGrid.DisableDragColSize()
+        #self.DataGrid.DisableDragColMove()
+
         self.__set_properties()
         self.__do_layout()
         self.Bind(wx.grid.EVT_GRID_CMD_CELL_RIGHT_CLICK, self.OnDataGridRightClick, source=self.DataGrid)
+        self.Bind(wx.grid.EVT_GRID_CMD_LABEL_RIGHT_CLICK, self.OnDataGridLabelRightClick, source=self.DataGrid)
         self.Bind(wx.grid.EVT_GRID_CMD_LABEL_LEFT_CLICK, self.OnDataGridLabelLeftClick, source=self.DataGrid)
         StartCoroutine(self.UpdateDataGridLoopAsync, self)
+
 
     async def UpdateDataGridLoopAsync(self):
         """ DataGrid Coroutine: Constantly Updates all cells in the DataGrid"""
@@ -86,7 +98,6 @@ class ConnectionsDataGridContainer(wx.ScrolledWindow):
         if col > -1:
             label = self.DataGrid.GetColLabelValue(col)
             if label in ['Packets', 'In', 'Out', 'Bandwidth', 'PID', 'Last Seen', 'First Seen']: # type: str
-                label = label # type: str
                 print('label:', label)
                 if self.SortBy is SortBy[label.replace(' ', '')]:
                     if self.SortDescending:
@@ -97,6 +108,27 @@ class ConnectionsDataGridContainer(wx.ScrolledWindow):
                     self.SortBy = SortBy[label.replace(' ', '')]
                 self.DataGridRefresh()
                 print(f"Sorting by: {self.SortBy} Descending: {self.SortDescending}")
+        event.Skip()
+
+    def OnDataGridHideColumn(self, evt: wx.grid.GridEvent, col, hide=True):
+        if hide:
+            self.DataGrid.HideCol(col)
+            self.DataGrid.ForceRefresh()
+        else:
+            self.DataGrid.ShowCol(col)
+        evt.Skip()
+
+    def OnDataGridLabelRightClick(self, event: wx.grid.GridEvent):
+        col = event.GetCol()
+        if col > -1:
+            label = self.DataGrid.GetColLabelValue(col)  # type: str
+            if label in ['Packets', 'In', 'Out', 'Bandwidth', 'PID', 'Last Seen', 'First Seen']:
+                print('label:', label)
+                menu = wx.Menu()
+                hide_col = wx.MenuItem(menu, wx.NewId(), 'Hide Column')
+                menu.Append(hide_col)
+                menu.Bind(wx.EVT_MENU, lambda e: self.OnDataGridHideColumn(e, col), hide_col)
+                self.PopupMenu(menu, event.GetPosition())
         event.Skip()
 
     def OnDataGridRightClick(self, event: wx.grid.GridEvent):
@@ -129,21 +161,29 @@ class ConnectionsDataGridContainer(wx.ScrolledWindow):
 
     def DataGridRefresh(self):
         """Update the entire DataGrid"""
+        if self.Refreshing:
+            logging.warning('Attempted to redraw grid while still drawing!')
+            return
+
+        self.Refreshing = True
         all_conn = sorted(self.DataSource.GetAllConnections(), key=lambda x: self.__GetSortingValue(x, self.SortBy), reverse=self.SortDescending)
+        tbl = self.DataGrid.GetTable() # type: GridStringTable
         for row in range (0, len(all_conn)):
             host = all_conn[row]
-            if not row < self.DataGrid.GetNumberRows():
-                self.DataGrid.AppendRows(1, False)
-            self.DataGridSetCell(row, 0, str(host.GetRemoteEndPoint()))
-            self.DataGridSetCell(row, 1, str(host.RemoteIP))
-            self.DataGridSetCell(row, 2, str(host.ProtoType))
-            self.DataGridSetCell(row, 3, str(host.PacketCount))
-            self.DataGridSetCell(row, 4, str(host.IncomingCount))
-            self.DataGridSetCell(row, 5, str(host.OutgoingCount))
-            self.DataGridSetCell(row, 6, str(host.BandwidthUsage))
-            self.DataGridSetCell(row, 7, str(host.GetPID()))
-            self.DataGridSetCell(row, 8, str(host.LastSeen.replace(microsecond=0)))
-            self.DataGridSetCell(row, 9, str(host.FirstSeen.replace(microsecond=0)))
+            if not row < tbl.GetNumberRows():
+                tbl.AppendRows()
+            tbl.SetValue(row, 0, str(host.GetRemoteEndPoint()))
+            tbl.SetValue(row, 1, str(host.RemoteIP))
+            tbl.SetValue(row, 2, str(host.ProtoType))
+            tbl.SetValue(row, 3, str(host.PacketCount))
+            tbl.SetValue(row, 4, str(host.IncomingCount))
+            tbl.SetValue(row, 5, str(host.OutgoingCount))
+            tbl.SetValue(row, 6, str(host.BandwidthUsage))
+            tbl.SetValue(row, 7, str(host.GetPID()))
+            tbl.SetValue(row, 8, str(host.LastSeen.replace(microsecond=0)))
+            tbl.SetValue(row, 9, str(host.FirstSeen.replace(microsecond=0)))
+        self.DataGrid.ForceRefresh()
+        self.Refreshing = False
 
     def __do_layout(self):
         self.DataGridSizer = wx.BoxSizer(wx.HORIZONTAL)

@@ -30,7 +30,7 @@ import psutil
 class HostData:
     __slots__ = ['FirstSeen','LastSeen','ProtoType','PacketCount','IncomingCount','OutgoingCount',
                  'BandwidthUsage','UploadUsage','DownloadUsage','LocalPort','LocalIP','RemotePort',
-                 'RemoteIP','RemoteHostname','SocketData',]
+                 'RemoteIP','RemoteHostname','SocketData', 'ProcessName']
     def __init__(self, LocalIP, LocalPort, RemoteIP, RemotePort, RemoteHostname, ProtoType, socket_data):
         self.FirstSeen = datetime.now()
         self.LastSeen = datetime.now()
@@ -47,6 +47,7 @@ class HostData:
         self.RemoteIP = RemoteIP
         self.RemoteHostname = RemoteHostname
         self.SocketData = socket_data
+        self.ProcessName = None
 
     def IncrementCount(self, conn_direction, pkt_size):
         self.PacketCount += 1
@@ -61,6 +62,13 @@ class HostData:
     def __str__(self):
         return f'RemoteHost: {self.RemoteHostname}:{self.RemotePort} - ' \
                f'PacketCount: {self.PacketCount} Incoming: {self.IncomingCount} Outgoing: {self.OutgoingCount}'
+
+    def GetProcName(self):
+        pid = self.SocketData[0]
+        if pid and psutil.pid_exists(pid):
+            return psutil.Process(pid).name()
+        else:
+            return None
 
     def SetRemoteHostname(self, NewRemoteHostname):
         self.RemoteHostname = NewRemoteHostname
