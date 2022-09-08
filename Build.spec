@@ -4,8 +4,7 @@ block_cipher = None
 
 import gooey
 gooey_root = os.path.dirname(gooey.__file__)
-gooey_languages = Tree(os.path.join(gooey_root, 'languages'), prefix = 'gooey/languages')
-gooey_images = Tree(os.path.join(gooey_root, 'images'), prefix = 'gooey/images')
+gooey_assets = Tree(os.path.join(gooey_root, 'assets'), prefix = 'gooey/assets')
 
 a = Analysis(['main.py'],
              pathex=[],
@@ -30,7 +29,7 @@ exe = EXE(pyz,
           strip=None,
           upx=True,
           console=False,
-          icon=os.path.join(gooey_root, 'images', 'program_icon.ico'))
+          icon=os.path.join(gooey_root, 'assets', 'GameIcon.bmp'))
 
 coll = COLLECT(exe,
                a.binaries,
