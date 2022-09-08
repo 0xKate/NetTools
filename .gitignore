@@ -4,3 +4,5 @@
 /main.spec
 /.idea/
 /NetTools.spec
+*.pyc
+*.pyo

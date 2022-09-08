@@ -33,7 +33,6 @@ from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
 from typing import Dict, Tuple, List, ValuesView, Union
 from datetime import datetime
 
-
 # 3rd Party Libraries
 import psutil
 from scapy.arch import get_if_addr
@@ -55,6 +54,7 @@ PROTO_MAP6 = {
     (AF_INET6, SOCK_DGRAM): 'UDP6',
 }
 
+
 class AppData:
     Connections = {}
     DNSRequests = {}
@@ -73,24 +73,26 @@ class AppData:
         return cls.Connections.values()
 
 
-
 class NetworkSniffer:
     """ Main DataModel of the application"""
     __slots__ = ["Sniffer", "Sniffing", "BackgroundThreads", "ReverseResolver",
                  "Connections", "SnifferEvent", "LocalIP", "Loop", "LoopPool", "ListAllSockets"]
+
     def __init__(self):
-        self.Sniffer = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0, filter="tcp or udp and not host 127.0.0.1")
+        self.Sniffer = AsyncSniffer(iface=conf.iface, prn=self._PacketCB, store=0,
+                                    filter="tcp or udp and not host 127.0.0.1")
         self.Sniffing = False
         self.BackgroundThreads = 0
         self.ReverseResolver = True
-        self.Connections = {} #type: Dict[Tuple[str, int, int], HostData]
+        self.Connections = {}  # type: Dict[Tuple[str, int, int], HostData]
         self.LocalIP = get_if_addr(conf.iface)
         self.Loop = asyncio.get_running_loop()
         self.LoopPool = concurrent.futures.ThreadPoolExecutor()
         self.ListAllSockets = psutil.net_connections(kind='inet4')
 
     ## - Helper Functions - ##
-    def _FindTrafficSocketData(self, signature: Tuple[str, int, int], update=False) -> Union[Tuple[int, str, int ],None]:
+    def _FindTrafficSocketData(self, signature: Tuple[str, int, int], update=False) -> Union[
+        Tuple[int, str, int], None]:
         """
         _FindTrafficSocketData(signature) -> ()\n
         :param signature: The connection signature of (str(IP), int(port), int(ENUM(PROTO)))
@@ -99,7 +101,7 @@ class NetworkSniffer:
         """
         if update:
             self.ListAllSockets = psutil.net_connections(kind='inet4')
-            #psutil.net_io_counters()
+            # psutil.net_io_counters()
         _dict = {(x.raddr[0], x.raddr[1], PROTO_MAP[(x.family, x.type)]): (x.pid, x.status, x.fd)
                  for x in self.ListAllSockets if len(x.raddr) == 2}
         if signature not in _dict:
@@ -128,8 +130,8 @@ class NetworkSniffer:
         return await self.Loop.run_in_executor(self.LoopPool, self.__TryGetHostFromAddr, ip, default)
 
     async def _UpdateConnectionDataAsync(self, conn_signature: Tuple[str, int, int],
-                                remote_host, local_host,
-                                conn_type, conn_direction, pkt_size):
+                                         remote_host, local_host,
+                                         conn_type, conn_direction, pkt_size):
         if conn_signature in self.Connections:
             self.Connections[conn_signature].IncrementCount(conn_direction, pkt_size)
             time_delta = datetime.now() - self.Connections[conn_signature].LastSeen
@@ -175,13 +177,13 @@ class NetworkSniffer:
                     direction = 'Outgoing'
                     remote_socket = (pkt[IP].dst, int(pkt[UDP].dport))
                     local_socket = (self.LocalIP, int(pkt[UDP].sport))
-            if proto is not None\
+            if proto is not None \
                     and direction is not None \
-                    and remote_socket is not None\
+                    and remote_socket is not None \
                     and local_socket is not None:
                 conn_signature = (str(remote_socket[0]), int(remote_socket[1]), int(proto.value))
                 self.Loop.create_task(self._UpdateConnectionDataAsync(conn_signature, remote_socket, local_socket,
-                                                             proto.name, direction, len(pkt)))
+                                                                      proto.name, direction, len(pkt)))
 
     def SniffStart(self):
         self.Sniffer.start()

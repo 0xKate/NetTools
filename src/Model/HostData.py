@@ -31,6 +31,7 @@ class HostData:
     __slots__ = ['FirstSeen','LastSeen','ProtoType','PacketCount','IncomingCount','OutgoingCount',
                  'BandwidthUsage','UploadUsage','DownloadUsage','LocalPort','LocalIP','RemotePort',
                  'RemoteIP','RemoteHostname','SocketData', 'ProcessName']
+
     def __init__(self, LocalIP, LocalPort, RemoteIP, RemotePort, RemoteHostname, ProtoType, socket_data):
         self.FirstSeen = datetime.now()
         self.LastSeen = datetime.now()

@@ -31,6 +31,7 @@ from Enums import EventMsg
 from Model.NetworkSniffer import NetworkSniffer
 from UI.MainWindow import MainWindow
 
+
 class WxAsyncEngine(WxAsyncApp):
     """ Main WxAsync Application """
     Version = 0.02
