@@ -18,8 +18,6 @@ jobs:
         
       - name: Package Application
         uses: 0xKate/Python-CI@main
-        with:
-          path: src
 
       - name: Release under current tag
         uses: marvinpinto/action-automatic-releases@latest
