@@ -49,7 +49,7 @@ class MainWindow(wx.Frame):
         wx.Frame.__init__(self, *args, **kwds)
 
         # Icon
-        _Icon = wx.Icon('assets/GameIcon.bmp')
+        _Icon = wx.Icon('assets/icon.png')
         self.SetIcon(_Icon)
 
         # Menu Bar

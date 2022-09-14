@@ -23,15 +23,12 @@ SOFTWARE.
 """
 
 import asyncio
-import contextlib
 import concurrent.futures
-
 # Included with Python
 import socket
-from multiprocessing.pool import ThreadPool
-from socket import gethostbyaddr, AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
-from typing import Dict, Tuple, List, ValuesView, Union
 from datetime import datetime
+from socket import AF_INET6, AF_INET, SOCK_DGRAM, SOCK_STREAM
+from typing import Dict, Tuple, Union
 
 # 3rd Party Libraries
 import psutil
@@ -41,7 +38,6 @@ from scapy.layers.inet import TCP, UDP, IP
 from scapy.sendrecv import AsyncSniffer
 
 # Project Files
-import Enums
 from Enums import PROTO
 from Model.HostData import HostData
 

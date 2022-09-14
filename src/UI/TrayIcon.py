@@ -30,7 +30,7 @@ class TrayIcon(TaskBarIcon):
     def __init__(self, frame):
         TaskBarIcon.__init__(self)
         self.frame = frame
-        self.SetIcon(wx.Icon('assets/GameIcon.bmp'), 'NetTools')
+        self.SetIcon(wx.Icon('assets/icon.png'), 'NetTools')
         self.Bind(wx.EVT_MENU, self.OnTaskBarActivate, id=1)
         self.Bind(wx.EVT_MENU, self.OnTaskBarDeactivate, id=2)
         self.Bind(wx.EVT_MENU, self.OnTaskBarClose, id=3)

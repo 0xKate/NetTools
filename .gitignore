@@ -1,1 +1,5 @@
 
+/dist/
+/tmp/
+/src/spam.log
+/spam.log

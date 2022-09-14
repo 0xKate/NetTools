@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['main.py'],
-             pathex=['src'],
+             pathex=['C:\\Users\\KirinFuji\\Desktop\\~Project Folders\\~Code\\Python\\nullsec\\src'],
              binaries=[],
              datas=[],
              hiddenimports=[],
@@ -26,7 +26,7 @@ exe = EXE(pyz,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=False )
+          console=True )
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,

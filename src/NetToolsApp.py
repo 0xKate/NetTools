@@ -24,6 +24,8 @@ SOFTWARE.
 
 import asyncio
 import ctypes
+import sys
+
 import pubsub.pub
 import wx
 from wxasync import WxAsyncApp
@@ -60,7 +62,11 @@ class WxAsyncEngine(WxAsyncApp):
 
     def Start(self):
         """Use the main thread to run our main event loop (ie. GoldenThread)"""
-        asyncio.run(self._StartAsync())
+        try:
+            asyncio.run(self._StartAsync())
+        except BaseException as ex:
+            print(f"Caught exception in main event loop, shutting down. : {ex}")
+            sys.exit(-1)
 
     def _Exit(self):
         """ Save & Quit the application """

@@ -21,13 +21,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+import logging
+
+# create logger with 'spam_application'
+import sys
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+fh = logging.FileHandler('spam.log')
+fh.setLevel(logging.DEBUG)
+logger.addHandler(fh)
 
 from NetToolsApp import WxAsyncEngine
 from os.path import dirname
 from os import chdir
+
 
 if __name__ == "__main__":
     pwd = dirname(__file__)
     chdir(pwd)
     UIEngine = WxAsyncEngine()
     UIEngine.Start()
+
+    sys.exit(0)
