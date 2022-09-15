@@ -17,7 +17,9 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
         
       - name: Package Application
-        uses: 0xKate/Python-CI@main
+        uses: 0xKate/PyInstaller-CI@v1
+        with:
+          repo_name: "${{ github.event.repository.name }}"
 
       - name: Release under current tag
         uses: marvinpinto/action-automatic-releases@latest
@@ -26,4 +28,4 @@ jobs:
           automatic_release_tag: "${{ env.RELEASE_VERSION }}"
           prerelease: false
           title: "${{ env.RELEASE_VERSION }}"
-          files: src/dist/windows/*
+          files: build/*
